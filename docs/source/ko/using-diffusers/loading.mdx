@@ -1,0 +1,427 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+# 불러오기(Loading)
+
+디퓨저스(diffusers) 라이브러리는 디퓨전 시스템에 필요한 개별 컴포넌트들(모델, 스케줄러, 토크나이저 등) 혹은 이들을 통합한 전체적인 파이프라인을 한 줄의 코드로 간단하게 로드할 수 있는 API를 제공하고 있습니다. 이를 통해 디퓨저스 라이브러리는 디퓨전 시스템을 최대한 쉽고 직관적으로 구현할 수 있도록 도와줍니다. 
+
+이번 챕터에서 설명할 파트는 다음과 같습니다.
+
+* [`DiffusionPipeline.from_pretrained`]를 통해 디퓨전 파이프라인 불러오기
+
+- [`ModelMixin.from_pretrained`]를 통해 디퓨전 모델 불러오기
+- [`SchedulerMixin.from_pretrained`]를 통해 스케줄러 불러오기
+
+
+
+## 파이프라인 불러오기
+
+[`DiffusionPipeline`] 클래스를 통해 [허깅페이스 허브에 올라온 디퓨전 모델들](https://huggingface.co/models?library=diffusers)을 불러올 수 있습니다. 다음 예제 코드를 통해 CompVis의 레이턴트 디퓨전 모델을 다운로드하는 방법을 알아보겠습니다.
+
+```python
+from diffusers import DiffusionPipeline
+
+repo_id = "CompVis/ldm-text2im-large-256"
+ldm = DiffusionPipeline.from_pretrained(repo_id)
+```
+
+[`DiffusionPipeline`]은 모델에 적합한 파이프라인 클래스를 자동으로 탐지하고 (이 예시의 경우, [`LDMTextToImagePipeline`]), 필요한 구성요소(config)와 가중치(weight) 파일들을 다운로드하고 캐싱합니다. 그런 다음 최종적으로 파이프라인 인스턴스를 반환합니다. 이렇게 반환된 파이프라인 인스턴스의 [`LDMTextToImagePipeline.__call__`] 메서드를 통해 이미지를 생성할 수 있습니다. (예시, `ldm("image of a astronaut riding a horse")` )
+
+
+
+물론 [`DiffusionPipeline`] 클래스를 사용하지 않고, 명시적으로 직접 해당 파이프라인 클래스를 불러오는 것도 가능합니다. 아래 예시 코드는 위 예시와 동일한 인스턴스를 반환합니다. 
+
+```python
+from diffusers import LDMTextToImagePipeline
+
+repo_id = "CompVis/ldm-text2im-large-256"
+ldm = LDMTextToImagePipeline.from_pretrained(repo_id)
+```
+
+[`LDMTextToImagePipeline`]을 비롯한 대부분의 디퓨전 파이프라인들은 여러 개의 다양한 컴포넌트들(모델, 토크나이저, 스케줄러 등)로 구성됩니다. [파이프라인 클래스](./api/overview#diffusers-summary)는 이러한 디퓨전 시스템 내의 다양한 컴포넌트들을 통합하고, 이를 통해 보다 사용이 용이한 형태의 API를 제공함과 동시에 커스터마이징의 유연성을 보장하는 것을 목표로 합니다.
+
+*[`LDMTextToImagePipeline`]과 [ `StableDiffusionPipeline`]의 구체적인 추론 과정에 대해서는 [여기](https://huggingface.co/blog/stable_diffusion#how-does-stable-diffusion-work)에서 확인할 수 있습니다.*
+
+
+
+### 액세스 요청이 필요한 파이프라인
+
+디퓨전 모델은 매우 사실적인 이미지를 생성할 수 있습니다. 그리고 이러한 특성이 선정적이거나 폭력적인 이미지를 생성하는 것에 악용될 수 있습니다. 이를 막기 위해 일부 매우 우수한 성능의 디퓨전 모델들의 경우, 해당 모델을 사용하기 전, 라이센스에 동의하도록하고 있습니다. 만약 유저가 해당 라이센스에 동의하지 않는다면, 해당 파이프라인을 다운로드 받을 수 없습니다.
+
+```python
+from diffusers import DiffusionPipeline
+
+repo_id = "runwayml/stable-diffusion-v1-5"
+stable_diffusion = DiffusionPipeline.from_pretrained(repo_id)
+```
+
+앞서 살펴본 방법과 동일한 방법으로  [`runwayml/stable-diffusion-v1-5`](https://huggingface.co/runwayml/stable-diffusion-v1-5) 모델의 파이프라인을 로드해보겠습니다. 해당 파이프라인은 [모델 카드](https://huggingface.co/runwayml/stable-diffusion-v1-5)에 있는 라이센스에 동의하고 Hugging Face Hub에 로그인한 경우에만 작동합니다. 그렇지 않으면 아래와 같은 오류 메시지가 표시됩니다.
+
+```
+OSError: runwayml/stable-diffusion-v1-5 is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
+If this is a private repository, make sure to pass a token having permission to this repo with `use_auth_token` or log in with `huggingface-cli login`
+```
+
+따라서 해당 파이프라인을 사용하고 싶다면 반드시 라이센스에 동의해야 합니다. 동의하는 방법은 간단합니다. 먼저 해당 [모델 카드](https://huggingface.co/runwayml/stable-diffusion-v1-5)에 접속해서 "Agree and access repository"를 클릭합니다.
+
+<p align="center">
+    <br>
+    <img src="https://raw.githubusercontent.com/huggingface/diffusers/main/docs/source/imgs/access_request.png" width="400"/>
+    <br>
+</p>
+
+
+
+그 다음 허깅페이스 CLI와 액세스 토큰을 사용하여 로그인하거나,
+
+```
+huggingface-cli login
+```
+
+[`DiffusionPipeline.from_pretrained`]에 `use_auth_token` 인자를 통해 [액세스 토큰](https://huggingface.co/docs/hub/security-tokens#user-access-tokens)을 전달합니다. `use_auth_token` 인자를 통해 액세스 토큰을 전달하는 경우, 따로 `huggingface-cli login`을 실행하지 않아도 됩니다.
+
+```python
+from diffusers import DiffusionPipeline
+
+repo_id = "runwayml/stable-diffusion-v1-5"
+stable_diffusion = DiffusionPipeline.from_pretrained(repo_id, use_auth_token="<your-access-token>")
+```
+
+이밖에도 액세스 요청이 필요한 파이프라인을 허깅페이스 허브에 접속하지 않고 사용할 수 있는 방법이 있습니다. 바로 다음 챕터에서 다뤄볼 파이프라인을 로컬로 불러오는 것입니다.
+
+
+
+### 파이프라인을 로컬로 불러오기
+
+파이프라인과 관련 파일들을 완전히 제어하고자 한다면, 혹은 허깅페이스 허브와의 연결 없이 액세스 요청을 필요로 하는 파이프라인을 사용하고자 한다면, 로컬로 파이프라인을 불러오는 것을 추천합니다.
+
+
+
+디퓨전 파이프라인을 로컬로 불러오려면, 먼저 로컬 디스크에 해당 파이프라인의 전체 폴더 구조를 수동으로 다운로드한 다음, 해당 로컬 경로를 [`DiffusionPipeline.from_pretrained`]에 전달해야 합니다. [CompVis의 레이턴트 디퓨전 모델](https://huggingface.co/CompVis/ldm-text2im-large-256)에 대한 예시를 살펴볼까요?
+
+먼저 [`git-lfs`](https://git-lfs.github.com/)를 사용하여 [모델 저장소](https://huggingface.co/CompVis/ldm-text2im-large-256/tree/main)에 업로드된 전체 폴더 구조를 다운로드해야 합니다.
+
+```
+git lfs install
+git clone https://huggingface.co/runwayml/stable-diffusion-v1-5
+```
+
+위의 명령어는 `./stable-diffusion-v1-5`라는 로컬 폴더를 생성합니다. 이제 해당 로컬 폴더 경로를 `from_pretrained` 메서드에 전달하기만 하면 됩니다.
+
+```python
+from diffusers import DiffusionPipeline
+
+repo_id = "./stable-diffusion-v1-5"
+stable_diffusion = DiffusionPipeline.from_pretrained(repo_id)
+```
+
+만약 `repo_id`가 로컬 패스라면, [`DiffusionPipeline.from_pretrained`]는 이를 자동으로 감지하여 허브에서 파일을 다운로드하지 않습니다. 일반적으로는 해당 모델의 최신 상태를 보장하기 위해 허브에서 직접 가중치(weight)를 불러오는 것이 권장됩니다. 하지만 익명성을 원하거나 독자적인 어플리케이션을 구축해야 한다면, 로컬로 파이프라인을 불러오는 방식이 필요할 것입니다.
+
+
+
+### 커스터마이징된 파이프라인 불러오기
+
+기본으로 설정된 컴포넌트들을 다른 컴포넌트로 교체하는 식으로, 일종의 커스터마이징 된 버전의 디퓨젼 파이프라인을 구성할 수 있습니다. 예를 들어 원래 기본으로 설정된 스케줄러를 다른 스케줄러로 바꾸는 식으로 말입니다.  [Stable Diffusion v1-5](https://huggingface.co/runwayml/stable-diffusion-v1-5) 파이프라인의 경우, 기본값으로 설정된 스케줄러는 [`PNDMScheduler`]입니다. 하지만 스테이블 디퓨전 모델이 출시된 이후, 이보다 발전된 형태의 스케줄러들이 여럿 등장했습니다. 이를 사용하기 위해 사용자는 수동으로 해당 스케줄러를 불러와서 [`DiffusionPipeline.from_pretrained`]에 전달할 수 있습니다.
+
+
+
+생성 속도와 생성 품질 사이에서 더 나은 트레이드 오프를 원한다면, 아래 예시와 같이 기본 스케줄러 대신 [`EulerDiscreteScheduler`]나 [`DPMSolverMultistepScheduler`]를 사용하는 것을 고려해볼 수 있습니다.
+
+```python
+from diffusers import DiffusionPipeline, EulerDiscreteScheduler, DPMSolverMultistepScheduler
+
+repo_id = "runwayml/stable-diffusion-v1-5"
+
+scheduler = EulerDiscreteScheduler.from_pretrained(repo_id, subfolder="scheduler")
+# or
+# scheduler = DPMSolverMultistepScheduler.from_pretrained(repo_id, subfolder="scheduler")
+
+stable_diffusion = DiffusionPipeline.from_pretrained(repo_id, scheduler=scheduler)
+```
+
+여기서 주목할 만한 세 가지가 있습니다.
+
+- 첫째, 스케줄러는 [`SchedulerMixin.from_pretrained`]을 통해 로딩됩니다.
+- 둘째, 스케줄러에 대한 상세설정(configuration)은 [해당 파이프라인의 공식 레포지토리의 스케줄러 하위폴더](https://huggingface.co/runwayml/stable-diffusion-v1-5/tree/main/scheduler)에 정의되어 있습니다. 따라서 스케줄러를 불러 올 때 `subfolder` 인자(argument)에 해당 하위 폴더명을 함께 전달해야 합니다. 예시: `EulerDiscreteScheduler.from_pretrained(repo_id, subfolder="scheduler")`
+- 셋째, 그렇게 만들어진 스케줄러 인스턴스는 `scheduler`라는 인자를 통해 [`DiffusionPipeline.from_pretrained`]로 전달됩니다. 예시: `stable_diffusion = DiffusionPipeline.from_pretrained(repo_id, scheduler=scheduler)`
+
+
+
+이론상 스케줄러 이외에도 파이프라인의 모든 컴포넌트를 커스터마이즈할 수 있습니다. 그러나 실제로는 **호환성**을 갖는 일부 컴포넌트만을 교체할 수 있는 경우가 많습니다. 그리고 대부분의 스케줄러 클래스는 [여기](https://github.com/huggingface/diffusers/blob/0dd8c6b4dbab4069de9ed1cafb53cbd495873879/src/diffusers/schedulers/scheduling_ddim.py#L112)서 볼 수 있듯 서로 호환되는 경우가 많습니다. "unet"과 같은 다른 컴포넌트들의 경우, 호환성이 항상 보장되는 것은 아닙니다.
+
+
+
+커스터마이즈 될 수 있는 또 하나의 특별 케이스는 바로 "safety_checker"입니다. "safety_checker"가 쓸모가 없다고 생각한다면, `None`을 전달함으로써 비활성화시킬 수 있습니다.
+
+*참고: safety_checker는 생성된 이미지의 폭력성과 유해성을 추정하는 클래시피케이션 레이어입니다.*
+
+
+
+```python
+from diffusers import DiffusionPipeline, EulerDiscreteScheduler, DPMSolverMultistepScheduler
+
+stable_diffusion = DiffusionPipeline.from_pretrained(repo_id, safety_checker=None)
+```
+
+또 하나의 일반적인 사용 사례는 여러 파이프라인에서 동일한 컴포넌트를 재사용하는 것입니다. 예를 들어  [`"runwayml/stable-diffusion-v1-5"`](https://huggingface.co/runwayml/stable-diffusion-v1-5)의 가중치(weight)와 설정(config)은 [`StableDiffusionPipeline`]과 [`StableDiffusionImg2ImgPipeline`] 양쪽에 모두 사용될 수 있는데, 만약 두가지 파이프라인을 모두 사용한다고 할 경우, 굳이 정확하게 동일한 가중치를 RAM에 두 번 불러올 필요는 없을 것입니다.
+
+```python
+from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
+
+model_id = "runwayml/stable-diffusion-v1-5"
+stable_diffusion_txt2img = StableDiffusionPipeline.from_pretrained(model_id)
+
+components = stable_diffusion_txt2img.components
+
+# weights are not reloaded into RAM
+stable_diffusion_img2img = StableDiffusionImg2ImgPipeline(**components)
+```
+
+위의 코드 스니펫에서 [`DiffusionPipeline.components`]가 어떻게 사용되는지를 확인해보세요.
+
+
+
+### 로딩은 어떻게 이루어질까요?
+
+클래스 메서드로서 [`DiffusionPipeline.from_pretrained`]는 다음 두 가지를 담당합니다.
+
+- `repo_id`로 전달된 파이프라인을 실행하기 위해, 필요한 최신 버전의 파일들을 다운로드하고 캐시합니다. 해당 파일들이 이미 로컬 캐시에 있는 경우, [`DiffusionPipeline.from_pretrained`]는 캐시를 재사용할 뿐 파일을 다시 다운로드하지 않습니다.
+- 캐시된 가중치들을 파이프라인 클래스로 불러온 다음, 해당 파이프라인의 인스턴스를 반환합니다. 이 때 (`repo_id`로 전달된) 디퓨전 모델 실행에 적합한 파이프라인 클래스는 `model_index.json` 파일을 통해 탐색됩니다. 
+
+
+
+[`DiffusionPipeline.from_pretrained`]를 통해 다운로드 받는 (혹은 로컬 캐시에서 가져온) 파일들의 구조는 기본적으로 해당 파이프라인 자체의 구조와 1대1로 대응됩니다. 아래 예시를 보는 것이 더 이해가 쉬울 것 같습니다.
+
+```python
+from diffusers import DiffusionPipeline
+
+repo_id = "CompVis/ldm-text2im-large-256"
+ldm = DiffusionPipeline.from_pretrained(repo_id)
+print(ldm)
+```
+
+Output:
+
+```
+LDMTextToImagePipeline {
+  "bert": [
+    "latent_diffusion",
+    "LDMBertModel"
+  ],
+  "scheduler": [
+    "diffusers",
+    "DDIMScheduler"
+  ],
+  "tokenizer": [
+    "transformers",
+    "BertTokenizer"
+  ],
+  "unet": [
+    "diffusers",
+    "UNet2DConditionModel"
+  ],
+  "vqvae": [
+    "diffusers",
+    "AutoencoderKL"
+  ]
+}
+```
+
+파이프라인 인스턴스(`ldm`)를 출력했을 때, 파이프라인 클래스는 [`LDMTextToImagePipeline`]이고, 또한`LDMTextToImagePipeline` 클래스는 다음과 같은 5개의 컴포넌트로 구성되어 있다는 것을 알 수 있습니다.
+
+- `LDMBertModel` 클래스로 구현된 `"bert"` 컴포넌트  [(참고)](https://github.com/huggingface/diffusers/blob/cd502b25cf0debac6f98d27a6638ef95208d1ea2/src/diffusers/pipelines/latent_diffusion/pipeline_latent_diffusion.py#L664)
+- [`DDIMScheduler`] 클래스로 구현된 `"scheduler"` 컴포넌트
+- `BertTokenizer` 클래스로 구현된 `"tokenizer"` 컴포넌트 [(참고)](https://huggingface.co/docs/transformers/model_doc/bert#transformers.BertTokenizer)
+-  [`UNet2DConditionModel`] 클래스로 구현된 `"unet"` 컴포넌트
+-  [`AutoencoderKL`] 클래스로 구현된 `"vqvae"` 컴포넌트
+
+
+
+이제 파이프라인 인스턴스와 [모델 레포지토리(`CompVis/ldm-text2im-large-256`)](https://huggingface.co/CompVis/ldm-text2im-large-256/tree/main)의 폴더 구조를 비교해 보겠습니다. 허깅페이스 허브에 올라온 [`CompVis/ldm-text2im-large-256`](https://huggingface.co/CompVis/ldm-text2im-large-256/tree/main)의 폴더 구조를 살펴보면, 앞서  `LDMTextToImagePipeline`의 인스턴스를 출력한 결과(`print(ldm)`)와 1대1로 대응되는 것을 알 수 있습니다.
+
+```
+.
+├── bert
+│   ├── config.json
+│   └── pytorch_model.bin
+├── model_index.json
+├── scheduler
+│   └── scheduler_config.json
+├── tokenizer
+│   ├── special_tokens_map.json
+│   ├── tokenizer_config.json
+│   └── vocab.txt
+├── unet
+│   ├── config.json
+│   └── diffusion_pytorch_model.bin
+└── vqvae
+    ├── config.json
+    └── diffusion_pytorch_model.bin
+```
+
+보시다 싶이, `LDMTextToImagePipeline`의 컴포넌트들과 동일한 이름의 하위 폴더들(`"bert"`, `"scheduler"`, `"tokenizer"`, `"unet"`, `"vqvae"` )이 있는데, 여기에 각 컴포넌트들에 필요한 설정(config)과 가중치(weight)들이 정의되어 있습니다. 또한 모든 파이프라인은 `model_index.json`이라는 파일을 갖게 되는데, 해당 파일은 다음 두가지에 대한 정보를 제공합니다.
+
+* 어떤 파이프라인 클래스로 불러와야 하는지
+* 하위 폴더에 저장된 컴포넌트들을 어떤 라이브러리의 어떤 클래스로 불러와야 하는지
+
+
+
+`CompVis/ldm-text2im-large-256`의 경우, `model_index.json`가 다음과 같이 정의되어 있습니다.
+
+```
+{
+  "_class_name": "LDMTextToImagePipeline",
+  "_diffusers_version": "0.0.4",
+  "bert": [
+    "latent_diffusion",
+    "LDMBertModel"
+  ],
+  "scheduler": [
+    "diffusers",
+    "DDIMScheduler"
+  ],
+  "tokenizer": [
+    "transformers",
+    "BertTokenizer"
+  ],
+  "unet": [
+    "diffusers",
+    "UNet2DConditionModel"
+  ],
+  "vqvae": [
+    "diffusers",
+    "AutoencoderKL"
+  ]
+}
+```
+
+- `_class_name`은 `DiffusionPipeline`이 로드해야 하는 파이프라인 클래스를 의미합니다.
+- `_diffusers_version`는  해당 모델이 `diffusers`의 어떤 버전에서 만들어졌는지를 알려줍니다.
+-  파이프라인의 모든 컴포넌트는 다음 형식으로 정의됩니다.
+
+```
+"name" : [
+  "library",
+  "class"
+]
+```
+
+```
+- The `"name"` field corresponds both to the name of the subfolder in which the configuration and weights are stored as well as the attribute name of the pipeline class (as can be seen [here](https://huggingface.co/CompVis/ldm-text2im-large-256/tree/main/bert) and [here](https://github.com/huggingface/diffusers/blob/cd502b25cf0debac6f98d27a6638ef95208d1ea2/src/diffusers/pipelines/latent_diffusion/pipeline_latent_diffusion.py#L42)
+- The `"library"` field corresponds to the name of the library, *e.g.* `diffusers` or `transformers` from which the `"class"` should be loaded
+- The `"class"` field corresponds to the name of the class, *e.g.* [`BertTokenizer`](https://huggingface.co/docs/transformers/model_doc/bert#transformers.BertTokenizer) or [`UNet2DConditionModel`]
+```
+
+
+
+## 모델 불러오기
+
+[src/diffusers/models](https://github.com/huggingface/diffusers/tree/main/src/diffusers/models)에 정의된 모델들의 경우 [`ModelMixin.from_pretrained`]를 통해 불러올 수 있습니다. 이 API는 [`DiffusionPipeline.from_pretrained`]와 매우 유사하며, 동일한 방식으로 동작합니다.
+
+* 최신 버전의 모델 가중치와 설정을 다운로드하고 캐시합니다. 이미 로컬 캐시에 해당 파일들이 최신 버전으로 존재할 경우,  [`ModelMixin.from_pretrained`]은 다시 다운로드하지 않고 캐시를 재사용합니다.
+
+* 캐시된 가중치를 정의된 모델 클래스 ([정의 가능한 모델 클래스들](./api/models)) 에 불러오고, 해당 클래스의 인스턴스를 반환합니다.
+
+[`DiffusionPipeline.from_pretrained`]과 달리, 모델 클래스들은 상대적으로 더 적은 파일들(`diffusion_pytorch_model.bin`과 `config.json` )만을 요구합니다. 
+
+예시를 볼까요?
+
+```python
+from diffusers import UNet2DConditionModel
+
+repo_id = "CompVis/ldm-text2im-large-256"
+model = UNet2DConditionModel.from_pretrained(repo_id, subfolder="unet")
+```
+
+모델을 불러올 때는 `subfolder` 인자를 통해 해당 모델의 가중치 파일들이 어떤 [하위 폴더](https://huggingface.co/CompVis/ldm-text2im-large-256/tree/main/unet)에 저장되어 있는지를 명시해줘야 합니다.
+
+앞서 [커스터마이징된 파이프라인 불러오기](#커스터마이징된-파이프라인-불러오기) 챕터를 통해 확인했듯, 이렇게 불러온 모델을 일종의 컴포넌트로서 파이프라인([`DiffusionPipeline.from_pretrained`])에 전달하는 것 역시 가능합니다. 
+
+```python
+from diffusers import DiffusionPipeline
+
+repo_id = "CompVis/ldm-text2im-large-256"
+ldm = DiffusionPipeline.from_pretrained(repo_id, unet=model)
+```
+
+
+
+[`google/ddpm-cifar10-32`](https://huggingface.co/google/ddpm-cifar10-32) 처럼 아주 단순한 형태의 디퓨전 모델의 경우, 모델 파일이 별도의 하위 폴더 없이 루트 폴더에 바로 존재할 수도 있습니다. 일반적인 케이스는 아니지만, 이런 경우 `subfolder` 인자를 전달하지 않고 모델을 불러와야 합니다. 
+
+```python
+from diffusers import UNet2DModel
+
+repo_id = "google/ddpm-cifar10-32"
+model = UNet2DModel.from_pretrained(repo_id)
+```
+
+
+
+
+
+
+
+
+
+## 스케줄러 불러오기
+
+스케줄러는 [`SchedulerMixin.from_pretrained`]를 통해 불러올 수 있습니다. 스케줄러는 모델과 달리 학습 대상이 되는 파라미터를 갖지 않습니다. 따라서 별도의 가중치(weight) 파일 없이 설정(config) 파일만 갖게 됩니다.
+
+
+
+API 전반의 통일성을 위해, 앞서 다뤄졌던 파이프라인과 모델에서 사용했던 것과 동일한 메서드명을 사용하지만, 스케줄러를 로드하는 경우, 어떠한 가중치도 로드되지 않는다는 점을 유의해주시기 바랍니다.
+
+
+
+파이프라인이나 모델과 달리, 스케줄러 로딩은 많은 양의 메모리를 소모하지는 않습니다. 또한 동일한 설정(config) 파일이 다양한 스케줄러에 적용될 수도 있습니다.
+
+
+
+
+- [`DDPMScheduler`]
+- [`DDIMScheduler`]
+- [`PNDMScheduler`]
+- [`LMSDiscreteScheduler`]
+- [`EulerDiscreteScheduler`]
+- [`EulerAncestralDiscreteScheduler`]
+- [`DPMSolverMultistepScheduler`]
+
+위의 스케줄러들은 모두 [`StableDiffusionPipeline`] 클래스와 호환되며, 동일한 스케쥴러 설정(config) 파일을 갖고 있습니다.
+
+
+
+```python
+from diffusers import StableDiffusionPipeline
+from diffusers import (
+    DDPMScheduler,
+    DDIMScheduler,
+    PNDMScheduler,
+    LMSDiscreteScheduler,
+    EulerDiscreteScheduler,
+    EulerAncestralDiscreteScheduler,
+    DPMSolverMultistepScheduler,
+)
+
+repo_id = "runwayml/stable-diffusion-v1-5"
+
+ddpm = DDPMScheduler.from_pretrained(repo_id, subfolder="scheduler")
+ddim = DDIMScheduler.from_pretrained(repo_id, subfolder="scheduler")
+pndm = PNDMScheduler.from_pretrained(repo_id, subfolder="scheduler")
+lms = LMSDiscreteScheduler.from_pretrained(repo_id, subfolder="scheduler")
+euler_anc = EulerAncestralDiscreteScheduler.from_pretrained(repo_id, subfolder="scheduler")
+euler = EulerDiscreteScheduler.from_pretrained(repo_id, subfolder="scheduler")
+dpm = DPMSolverMultistepScheduler.from_pretrained(repo_id, subfolder="scheduler")
+
+# replace `dpm` with any of `ddpm`, `ddim`, `pndm`, `lms`, `euler`, `euler_anc`
+pipeline = StableDiffusionPipeline.from_pretrained(repo_id, scheduler=dpm)
+```
+
