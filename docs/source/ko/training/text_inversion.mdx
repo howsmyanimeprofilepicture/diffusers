@@ -1,0 +1,137 @@
+<!--Copyright 2022 The HuggingFace Team. All rights reserved.
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+the License. You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+-->
+
+
+
+# 텍스튜얼 인버전
+
+텍스튜얼 인버전(Textual Inversion)은 적은 수의 예시 이미지로부터 해당 이미지가 담고 있는 시각적인 컨셉(concept)을 포착하기 위해 고안된 테크닉입니다. 이는 (텍스트 인코더의) 임베딩 스페이스안에서 가상의 단어 토큰(pseudo word token)를 학습함으로써 이루어집니다. 아래 이미지의 $S_*$가 바로 이 가상의 단어 토큰을 의미합니다.
+
+
+
+![Textual Inversion example](https://textual-inversion.github.io/static/images/editing/colorful_teapot.JPG)
+
+3~5개의 샘플 이미지만으로도, 해당 샘플들이 담고 있는 시각적인 컨셉(concept)을 $S_{*}$라는 가상의 토큰을 통해 스테이블 디퓨전과 같은 이미지 생성 모델에게 주입시킬 수 있습니다. ([이미지 출처](https://github.com/rinongal/textual_inversion))
+
+
+
+해당 테크닉은 [An Image is Worth One Word: Personalizing Text-to-Image Generation using Textual Inversion](https://arxiv.org/abs/2208.01618)라는 학술논문을 통해 소개되었습니다. 해당 논문에서는 [레이턴트 디퓨전 모델 (latent diffusion model)](https://github.com/CompVis/latent-diffusion)을 통해 해당 개념을 설명하고 있지만, [스테이블 디퓨전](https://huggingface.co/docs/diffusers/main/en/conceptual/stable_diffusion)과 같은 모델을 통해서도 구현할 수 있습니다. 
+
+
+
+
+## 어떻게 동작할까요?
+
+![Diagram from the paper showing overview](https://textual-inversion.github.io/static/images/training/training.JPG)
+_Architecture Overview from the [textual inversion blog post](https://textual-inversion.github.io/)_
+
+
+
+텍스트 프롬프트를 디퓨전 모델에 전달하기 앞서, 해당 프롬프트를 (컴퓨터가 이해할 수 있는) 수치적인 형태의 값, 다시 말해 임베딩 벡터로 변환해야 합니다. 일반적으로 이와 같은 작업은 전체 텍스트를 토큰 단위로 분리하고(*토크나이징*), 그렇게 쪼개진 각각의 토큰들을 임베딩 벡터로 변환하는 형태로 이루어집니다. 그렇게 만들어진 임베딩 벡터를 모델(일반적으로는 트랜스포머 계열)에 전달하는데, 이 때 모델이 산출하는 아웃풋을 우리는 디퓨전 모델에 일종의 조건(conditioning)으로 사용하게 됩니다. 
+
+텍스튜얼 인버전은 샘플이미지들의 시각적인 콘셉을 잘 표현하는 새로운 토큰 임베딩 벡터 $v^*$를 학습하는 것을 목표로 합니다. 이러한 새로운 토큰 임베딩을 포함한 프롬프트는 노이즈 처리된 샘플 이미지들과 함께 인풋으로서 제너레이터 모델에 전달됩니다. 이 때 제너레이터 모델은 역으로 노이즈 처리된 인풋으로부터 디노이즈된 이미지를 예측하는 것을 목표로 학습됩니다. 이 때 우리가 학습한 임베딩 벡터 $v^*$가 트레이닝 이미지들의 시각적인 컨셉을 잘 표현할수록, 해당 임베딩 벡터는 더 유의미한 정보를 디퓨전 모델에 제공할 것입니다. 다시 말해 이러한 잘 학습된 임베딩 벡터 $v^*$의 경우 디노이징 로스가 더 낮게 계산될 것이고, 이러한 학습과정을 통해 우리는 (우리가 원래 목표했던) 샘플이미지의 시각적인 콘셉을 잘 표현하는 임베딩 벡터 $v^*$를 얻을 수 있게 됩니다.
+
+추가적으로 주의깊게 살펴보면 좋을 것이 있다면, 위의 아키텍처 오버뷰 이미지에서 $v^*$을 임베딩하는 레이어를 제외하고는 전부 학습 파라미터가 프로즌(frozen)되어 있다는 것을 알 수 있습니다. 우리의 목적은 기존 디퓨전 모델을 갈아 엎는 것이 아니라, 단순히 어떠한 샘플 이미지들의 시각적인 컨셉을 담는 새로운 임베딩 $v^*$을 학습하는 것이라는 것을 기억해주세요!
+
+ 
+
+## 사용 예시
+
+텍스튜얼 인버전을 학습시키고 싶으시다면, [이 예시 코드](https://github.com/huggingface/diffusers/tree/main/examples/textual_inversion)를 확인해주세요.
+
+[학습에 대한 노트북![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/notebooks/blob/main/diffusers/sd_textual_inversion_training.ipynb)과 [추론에 관한 노트북![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/huggingface/notebooks/blob/main/diffusers/stable_conceptualizer_inference.ipynb) 역시 확인하실 수 있습니다.
+
+
+
+여러분이 직접 학습한 컨셉(*앞서 우리가 수 없이 이야기 했던 시각적인 컨셉을 의미합니다.*)을 사용하는 것 외에도, [Stable Diffusion public concepts library](https://huggingface.co/sd-concepts-library)라는 커뮤니티를 통해 제공되는 컨셉들을 사용하는 것 역시 고려할 수 있습니다. 많은 사람들이 해당 커뮤니티에 유용한 리소스와 예시들을 공유함으로써 함께 성장했으면 하는 바람입니다.
+
+
+
+## 예시: 로컬로 구동해보기 
+
+`textual_inversion.py` [스크립트](https://github.com/huggingface/diffusers/blob/main/examples/textual_inversion)는 학습과정의 구현과 그것을 스테이블 디퓨전에 접목시키는 법에 대해 다루고 있습니다.
+
+
+
+### 디펜던시 설치하기
+
+스크립트를 실행하기 앞서, 디펜던시 패키지들을 설치해줍시다.
+
+```bash
+pip install diffusers[training] accelerate transformers
+```
+
+그리고  [🤗Accelerate](https://github.com/huggingface/accelerate/) 환경을 이니셜라이즈 해줍시다.
+
+```bash
+accelerate config
+```
+
+
+
+### 예시: 야옹이
+
+모델을 다운로드하기 앞서 전에, 먼저 [해당 모델 카드](https://huggingface.co/CompVis/stable-diffusion-v1-4)에 들어가서 라이센스를 수락해야 합니다. 해당 라이센스를 읽어보고 동의한다면 체크박스를 체크해주세요.
+
+또한 모델을 사용하기 위해서는 허깅페이스 허브에 가입된 사용자여야 하며, 해당 코드를 구동하기 위해서는 액세스 토큰을 발급받아야 합니다. 자세한 내용은 [여기서](https://huggingface.co/docs/hub/security-tokens) 확인해주세요.
+
+아래의 커맨드를 실행해서 여러분의 액세스 토큰을 인증할 수 있습니다.
+
+```bash
+huggingface-cli login
+```
+
+만약 이미 해당 모델 저장소를 클론하고 있다면, 이와 같은 과정을 거칠 필요가 없습니다.
+
+
+
+예시 코드 실행에 앞서 트레이닝 데이터를 다운받아야 합니다. 3~4개 가량의 이미지를 [여기서](https://drive.google.com/drive/folders/1fmJMs25nxS_rSNqS5hTcRdLem_YQXbq5) 다운받아 디렉토리에 저장합시다. 데이터 다운로드가 완료되면, 다음 커맨드를 실행시켜 학습을 진행할 수 있습니다.
+
+```bash
+export MODEL_NAME="runwayml/stable-diffusion-v1-5"
+export DATA_DIR="path-to-dir-containing-images"
+
+accelerate launch textual_inversion.py \
+  --pretrained_model_name_or_path=$MODEL_NAME \
+  --train_data_dir=$DATA_DIR \
+  --learnable_property="object" \
+  --placeholder_token="<cat-toy>" --initializer_token="toy" \
+  --resolution=512 \
+  --train_batch_size=1 \
+  --gradient_accumulation_steps=4 \
+  --max_train_steps=3000 \
+  --learning_rate=5.0e-04 --scale_lr \
+  --lr_scheduler="constant" \
+  --lr_warmup_steps=0 \
+  --output_dir="textual_inversion_cat"
+```
+
+학습시간은 하나의 V100 GPU를 기준으로 전체 학습까지 대략 1시간이 소요됩니다.
+
+
+
+### 추론
+
+모델 학습을 완료했다면, 추론은 `StableDiffusionPipeline`을 통해 간단하게 수행될 수 있습니다. 물론 프롬프트에 `placeholder_token`을 포함시켜야 한다는 것을 기억해주세요.
+
+```python
+from diffusers import StableDiffusionPipeline
+
+model_id = "path-to-your-trained-model"
+pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16).to("cuda")
+
+prompt = "A <cat-toy> backpack"
+
+image = pipe(prompt, num_inference_steps=50, guidance_scale=7.5).images[0]
+
+image.save("cat-backpack.png")
+```
