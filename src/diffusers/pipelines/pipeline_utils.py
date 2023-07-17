@@ -1213,6 +1213,15 @@ class DiffusionPipeline(ConfigMixin):
             filenames = {sibling.rfilename for sibling in info.siblings}
             model_filenames, variant_filenames = variant_compatible_siblings(filenames, variant=variant)
 
+            if len(variant_filenames) == 0 and variant is not None:
+                deprecation_message = (
+                    f"You are trying to load the model files of the `variant={variant}`, but no such modeling files are available."
+                    f"The default model files: {model_filenames} will be loaded instead. Make sure to not load from `variant={variant}`"
+                    "if such variant modeling files are not available. Doing so will lead to an error in v0.22.0 as defaulting to non-variant"
+                    "modeling files is deprecated."
+                )
+                deprecate("no variant default", "0.22.0", deprecation_message, standard_warn=False)
+
             # remove ignored filenames
             model_filenames = set(model_filenames) - set(ignore_filenames)
             variant_filenames = set(variant_filenames) - set(ignore_filenames)
@@ -1302,7 +1311,7 @@ class DiffusionPipeline(ConfigMixin):
             snapshot_folder = Path(config_file).parent
             pipeline_is_cached = all((snapshot_folder / f).is_file() for f in expected_files)
 
-            if pipeline_is_cached:
+            if pipeline_is_cached and not force_download:
                 # if the pipeline is cached, we can directly return it
                 # else call snapshot_download
                 return snapshot_folder

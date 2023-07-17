@@ -129,6 +129,7 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin):
         self.register_to_config(force_zeros_for_empty_prompt=force_zeros_for_empty_prompt)
         self.vae_scale_factor = 2 ** (len(self.vae.config.block_out_channels) - 1)
         self.image_processor = VaeImageProcessor(vae_scale_factor=self.vae_scale_factor)
+        self.default_sample_size = self.unet.config.sample_size
 
         self.watermark = StableDiffusionXLWatermarker()
 
@@ -652,8 +653,8 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin):
             "not-safe-for-work" (nsfw) content, according to the `safety_checker`.
         """
         # 0. Default height and width to unet
-        height = height or self.unet.config.sample_size * self.vae_scale_factor
-        width = width or self.unet.config.sample_size * self.vae_scale_factor
+        height = height or self.default_sample_size * self.vae_scale_factor
+        width = width or self.default_sample_size * self.vae_scale_factor
 
         original_size = original_size or (height, width)
         target_size = target_size or (height, width)
@@ -785,15 +786,18 @@ class StableDiffusionXLPipeline(DiffusionPipeline, FromSingleFileMixin):
         # make sure the VAE is in float32 mode, as it overflows in float16
         self.vae.to(dtype=torch.float32)
 
-        use_torch_2_0_or_xformers = self.vae.decoder.mid_block.attentions[0].processor in [
-            AttnProcessor2_0,
-            XFormersAttnProcessor,
-            LoRAXFormersAttnProcessor,
-            LoRAAttnProcessor2_0,
-        ]
+        use_torch_2_0_or_xformers = isinstance(
+            self.vae.decoder.mid_block.attentions[0].processor,
+            (
+                AttnProcessor2_0,
+                XFormersAttnProcessor,
+                LoRAXFormersAttnProcessor,
+                LoRAAttnProcessor2_0,
+            ),
+        )
         # if xformers or torch_2_0 is used attention block does not need
         # to be in float32 which can save lots of memory
-        if not use_torch_2_0_or_xformers:
+        if use_torch_2_0_or_xformers:
             self.vae.post_quant_conv.to(latents.dtype)
             self.vae.decoder.conv_in.to(latents.dtype)
             self.vae.decoder.mid_block.to(latents.dtype)
